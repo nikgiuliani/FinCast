@@ -406,6 +406,11 @@ button {
     border-bottom: 1px solid var(--border-subtle);
     background: var(--page);
   }
+  .profit {
+    position: sticky;
+    top: 155px;
+    z-index: 10;
+  }
   .grid {
     grid-template-columns: 1fr;
   }
