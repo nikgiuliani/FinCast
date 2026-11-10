@@ -1,5 +1,11 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  annualMortgageInterest,
+  estimateHomeTaxBenefits,
+  federalIncomeTax,
+  standardDeductionFor,
+} from './tax-estimates.mjs';
 const money = (n) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -36,11 +42,21 @@ function Row({ k, v }) {
 }
 export default function Page() {
   const [tab, setTab] = useState('pay');
+  const [darkMode, setDarkMode] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef(null);
   const [salary, setSalary] = useState(120000),
     [state, setState] = useState('UT'),
     [freq, setFreq] = useState(26),
+    [filingStatus, setFilingStatus] = useState('single'),
+    [childrenUnder17, setChildrenUnder17] = useState(0),
+    [otherDependents, setOtherDependents] = useState(0),
+    [otherIncome, setOtherIncome] = useState(0),
+    [w4Deductions, setW4Deductions] = useState(0),
+    [extraWithholding, setExtraWithholding] = useState(0),
     [retire, setRetire] = useState(5),
     [medical, setMedical] = useState(100),
+    [otherPreTax, setOtherPreTax] = useState(0),
     [additionalDeductions, setAdditionalDeductions] = useState(0);
   const [address, setAddress] = useState('123 Main St, West Jordan, UT 84084'),
     [geo, setGeo] = useState(null),
@@ -78,18 +94,95 @@ export default function Page() {
   const [usage, setUsage] = useState('typical');
   const [solar, setSolar] = useState(null);
   const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    const savedMode = window.localStorage.getItem('homepay-dark-mode') === 'true';
+    setDarkMode(savedMode);
+    document.documentElement.dataset.theme = savedMode ? 'dark' : 'light';
+  }, []);
+  useEffect(() => {
+    if (!settingsOpen) return;
+    function closeSettings(event) {
+      if (event.type === 'keydown' && event.key === 'Escape') {
+        setSettingsOpen(false);
+      } else if (event.type === 'pointerdown' && !settingsRef.current?.contains(event.target)) {
+        setSettingsOpen(false);
+      }
+    }
+    document.addEventListener('pointerdown', closeSettings);
+    document.addEventListener('keydown', closeSettings);
+    return () => {
+      document.removeEventListener('pointerdown', closeSettings);
+      document.removeEventListener('keydown', closeSettings);
+    };
+  }, [settingsOpen]);
   const pay = useMemo(() => {
-    const gross = salary / freq,
-      ret = (gross * retire) / 100,
-      pre = (ret + medical) * freq,
-      taxable = Math.max(0, salary - pre),
-      fed = taxable * 0.145,
-      fica = salary * 0.0765,
-      stateTax =
-        taxable * ({ UT: 0.0455, TX: 0, CA: 0.06, NY: 0.055, FL: 0, CO: 0.044 }[state] || 0.045),
-      net = Math.max(0, salary - pre - fed - fica - stateTax - additionalDeductions * freq);
-    return { gross, ret, monthly: net / 12, per: net / freq, fed, fica, stateTax };
-  }, [salary, state, freq, retire, medical, additionalDeductions]);
+    const annualSalary = Math.max(0, Number(salary) || 0),
+      periods = Math.max(1, Number(freq) || 1),
+      gross = annualSalary / periods,
+      ret = (gross * Math.max(0, Number(retire) || 0)) / 100,
+      preTaxPerCheck =
+        ret + Math.max(0, Number(medical) || 0) + Math.max(0, Number(otherPreTax) || 0),
+      taxableWages = Math.max(0, annualSalary - preTaxPerCheck * periods),
+      ficaWages = Math.max(0, annualSalary - Math.max(0, Number(medical) || 0) * periods),
+      annualOtherIncome = Math.max(0, Number(otherIncome) || 0),
+      annualW4Deductions = Math.max(0, Number(w4Deductions) || 0),
+      dependentCredit =
+        Math.max(0, Number(childrenUnder17) || 0) * 2200 +
+        Math.max(0, Number(otherDependents) || 0) * 500,
+      creditPhaseoutStart = filingStatus === 'marriedFilingJointly' ? 400000 : 200000,
+      creditReduction =
+        Math.ceil(Math.max(0, annualSalary + annualOtherIncome - creditPhaseoutStart) / 1000) * 50,
+      federalCredits = Math.max(0, dependentCredit - creditReduction),
+      federalTaxableIncome = Math.max(
+        0,
+        taxableWages + annualOtherIncome - standardDeductionFor(filingStatus) - annualW4Deductions,
+      ),
+      fedAnnual = Math.max(
+        0,
+        federalIncomeTax(federalTaxableIncome, filingStatus) - federalCredits,
+      ),
+      federalWithholding = fedAnnual / periods,
+      extraWithholdingPerCheck = Math.max(0, Number(extraWithholding) || 0),
+      fed = federalWithholding + extraWithholdingPerCheck,
+      socialSecurity = (Math.min(ficaWages, 184500) * 0.062) / periods,
+      medicare = (ficaWages * 0.0145 + Math.max(0, ficaWages - 200000) * 0.009) / periods,
+      fica = socialSecurity + medicare,
+      stateTaxRate = { UT: 0.0455, TX: 0, CA: 0.06, NY: 0.055, FL: 0, CO: 0.044 }[state] || 0.045,
+      stateTax = (taxableWages * stateTaxRate) / periods,
+      postTaxPerCheck = Math.max(0, Number(additionalDeductions) || 0),
+      net = Math.max(0, gross - preTaxPerCheck - fed - fica - stateTax - postTaxPerCheck);
+    return {
+      gross,
+      ret,
+      preTaxPerCheck,
+      monthly: (net * periods) / 12,
+      per: net,
+      fed,
+      federalWithholding,
+      extraWithholdingPerCheck,
+      fica,
+      socialSecurity,
+      medicare,
+      stateTax,
+      postTaxPerCheck,
+      federalCredits,
+      incomeBeforeDeductions: taxableWages + annualOtherIncome,
+    };
+  }, [
+    salary,
+    state,
+    freq,
+    filingStatus,
+    childrenUnder17,
+    otherDependents,
+    otherIncome,
+    w4Deductions,
+    extraWithholding,
+    retire,
+    medical,
+    otherPreTax,
+    additionalDeductions,
+  ]);
   const util = useMemo(() => {
     const mult = usage === 'efficient' ? 0.75 : usage === 'high' ? 1.35 : 1,
       kwh = usage === 'efficient' ? 650 : usage === 'high' ? 1500 : 1000,
@@ -138,7 +231,22 @@ export default function Page() {
       ins = insurance / 12,
       utilityIncluded = includeUtilities ? util.total : 0,
       projectsIncluded = includeProjects ? projectPayment : 0,
-      total = pi + tax + ins + hoa + mi + utilityIncluded + projectsIncluded;
+      grossTotal = pi + tax + ins + hoa + mi + utilityIncluded + projectsIncluded,
+      annualInterest = annualMortgageInterest(principal, rate, term),
+      taxBenefits = estimateHomeTaxBenefits({
+        incomeBeforeDeductions: pay.incomeBeforeDeductions,
+        filingStatus,
+        federalCredits: pay.federalCredits,
+        w4Deductions,
+        stateIncomeTax: pay.stateTax * freq,
+        propertyTax: tax * 12,
+        mortgageInterest: annualInterest,
+        mortgageBalance: principal,
+      }),
+      propertyTaxBenefit = taxBenefits.propertyTaxBenefit / 12,
+      mortgageInterestBenefit = taxBenefits.mortgageInterestBenefit / 12,
+      taxBenefit = propertyTaxBenefit + mortgageInterestBenefit,
+      total = Math.max(0, grossTotal - taxBenefit);
     return {
       base,
       pi,
@@ -149,6 +257,11 @@ export default function Page() {
       ufmip,
       utilityIncluded,
       projectsIncluded,
+      annualInterest,
+      propertyTaxBenefit,
+      mortgageInterestBenefit,
+      taxBenefit,
+      grossTotal,
       total,
       left: pay.monthly - total,
       ratio: pay.monthly ? total / pay.monthly : 0,
@@ -164,6 +277,12 @@ export default function Page() {
     hoa,
     util,
     pay.monthly,
+    pay.incomeBeforeDeductions,
+    pay.federalCredits,
+    pay.stateTax,
+    freq,
+    filingStatus,
+    w4Deductions,
     includeUtilities,
     includeProjects,
     projectPayment,
@@ -224,6 +343,47 @@ export default function Page() {
             2 · Home
           </button>
         </div>
+        <div className="settings" ref={settingsRef}>
+          <button
+            className="settingsButton"
+            type="button"
+            aria-label="Settings"
+            aria-haspopup="true"
+            aria-expanded={settingsOpen}
+            aria-controls="settings-menu"
+            onClick={() => setSettingsOpen((open) => !open)}
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2.75v2.1m0 14.3v2.1M2.75 12h2.1m14.3 0h2.1M5.46 5.46l1.49 1.49m11.1 11.1 1.49 1.49m0-14.08-1.49 1.49m-11.1 11.1-1.49 1.49" />
+            </svg>
+          </button>
+          {settingsOpen && (
+            <div className="settingsMenu" id="settings-menu">
+              <label className="settingsOption">
+                <input
+                  type="checkbox"
+                  checked={darkMode}
+                  onChange={(event) => {
+                    const nextMode = event.target.checked;
+                    setDarkMode(nextMode);
+                    window.localStorage.setItem('homepay-dark-mode', String(nextMode));
+                    document.documentElement.dataset.theme = nextMode ? 'dark' : 'light';
+                  }}
+                />
+                <span>Dark mode</span>
+              </label>
+            </div>
+          )}
+        </div>
       </div>
       {tab === 'pay' ? (
         <div className="grid">
@@ -231,14 +391,21 @@ export default function Page() {
             <div className="eyebrow">Paycheck calculator</div>
             <h1>Start with what actually reaches your bank account.</h1>
             <p className="muted">
-              Core math stays instant in the browser. Retirement is a percentage of each paycheck;
-              medical is a dollar deduction per paycheck.
+              Enter your W-4 details and paycheck deductions for an estimated 2026 take-home amount.
             </p>
             <div className="fields">
               <Field label="Annual salary">
                 <input type="number" value={salary} onChange={(e) => setSalary(+e.target.value)} />
               </Field>
-              <Field label="Work state">
+              <Field label="Federal filing status">
+                <select value={filingStatus} onChange={(e) => setFilingStatus(e.target.value)}>
+                  <option value="single">Single</option>
+                  <option value="marriedFilingJointly">Married filing jointly</option>
+                  <option value="marriedFilingSeparately">Married filing separately</option>
+                  <option value="headOfHousehold">Head of household</option>
+                </select>
+              </Field>
+              <Field label="Work state (estimated)">
                 <select value={state} onChange={(e) => setState(e.target.value)}>
                   {['UT', 'TX', 'CA', 'NY', 'FL', 'CO'].map((x) => (
                     <option key={x}>{x}</option>
@@ -253,6 +420,40 @@ export default function Page() {
                   <option value="52">Weekly</option>
                 </select>
               </Field>
+              <Field label="Qualifying children under 17">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={childrenUnder17}
+                  onChange={(e) => setChildrenUnder17(+e.target.value)}
+                />
+              </Field>
+              <Field label="Other qualifying dependents">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={otherDependents}
+                  onChange={(e) => setOtherDependents(+e.target.value)}
+                />
+              </Field>
+              <Field label="Other annual income (W-4)">
+                <input
+                  type="number"
+                  min="0"
+                  value={otherIncome}
+                  onChange={(e) => setOtherIncome(+e.target.value)}
+                />
+              </Field>
+              <Field label="Other annual deductions (W-4, above standard)">
+                <input
+                  type="number"
+                  min="0"
+                  value={w4Deductions}
+                  onChange={(e) => setW4Deductions(+e.target.value)}
+                />
+              </Field>
               <Field label="Retirement / paycheck (%)">
                 <input
                   type="number"
@@ -266,6 +467,22 @@ export default function Page() {
                   type="number"
                   value={medical}
                   onChange={(e) => setMedical(+e.target.value)}
+                />
+              </Field>
+              <Field label="Other pre-tax benefits / paycheck">
+                <input
+                  type="number"
+                  min="0"
+                  value={otherPreTax}
+                  onChange={(e) => setOtherPreTax(+e.target.value)}
+                />
+              </Field>
+              <Field label="Extra tax withholding / paycheck">
+                <input
+                  type="number"
+                  min="0"
+                  value={extraWithholding}
+                  onChange={(e) => setExtraWithholding(+e.target.value)}
                 />
               </Field>
             </div>
@@ -284,8 +501,9 @@ export default function Page() {
               </Field>
             </div>
             <div className="notice">
-              Payroll withholding remains a planning estimate; a filing-grade payroll engine is not
-              available as a robust nationwide free public API.
+              Federal estimates use 2026 brackets and your filing details. State withholding uses
+              simplified estimates for the listed states; local taxes and employer-specific payroll
+              rules are not included.
             </div>
           </section>
           <aside className="stack">
@@ -302,13 +520,23 @@ export default function Page() {
                 </div>
               </div>
               <div className="divider" />
+              <Row k="Federal income tax" v={`${money(pay.federalWithholding)}/check`} />
+              <Row
+                k="Extra federal withholding"
+                v={`${money(pay.extraWithholdingPerCheck)}/check`}
+              />
+              <Row k="Social Security" v={`${money(pay.socialSecurity)}/check`} />
+              <Row k="Medicare" v={`${money(pay.medicare)}/check`} />
+              <Row k="State income tax (estimate)" v={`${money(pay.stateTax)}/check`} />
               <Row k="Retirement" v={`${money(pay.ret)}/check`} />
               <Row k="Medical" v={`${money(medical)}/check`} />
+              <Row k="Other pre-tax benefits" v={`${money(otherPreTax)}/check`} />
               <Row k="Additional deductions" v={`${money(additionalDeductions)}/check`} />
+              <Row k="Federal dependent credits" v={`${money(pay.federalCredits)}/year`} />
+              <button className="btn takeHomeAction" onClick={() => setTab('home')}>
+                Use this take-home →
+              </button>
             </div>
-            <button className="btn" onClick={() => setTab('home')}>
-              Use this take-home →
-            </button>
           </aside>
         </div>
       ) : (
@@ -329,6 +557,11 @@ export default function Page() {
                 {geo?.source && <Badge live={geo.live}>{geo.source}</Badge>}
               </div>
               <p className="tiny">{geoStatus}</p>
+              <div className="notice">
+                {geo?.matched
+                  ? `Location matched to ${[geo.city, geo.county && `${geo.county} County`, geo.state, geo.zip].filter(Boolean).join(', ')}. Address-specific exemptions and local credits are not verified; check the county assessor for programs you may qualify for.`
+                  : 'Location-specific exemptions and local credits are not verified. A matched address can identify the jurisdiction, but eligibility depends on the property and owner.'}
+              </div>
               <div className="fields">
                 <Field label="Home price">
                   <input type="number" value={price} onChange={(e) => setPrice(+e.target.value)} />
@@ -535,7 +768,22 @@ export default function Page() {
                 </label>
                 <b>{money(projectPayment)}</b>
               </div>
-              <Row k="Total" v={money(home.total)} />
+              <Row k="Gross monthly housing cost" v={money(home.grossTotal)} />
+              <Row
+                k="Estimated property-tax deduction"
+                v={`${money(-home.propertyTaxBenefit)}/mo`}
+              />
+              <Row
+                k="Estimated mortgage-interest deduction"
+                v={`${money(-home.mortgageInterestBenefit)}/mo`}
+              />
+              <Row k="Net monthly cost after estimated tax benefits" v={money(home.total)} />
+              <div className="notice">
+                Tax benefits are estimated federal tax savings from itemizing eligible property
+                taxes and first-year mortgage interest, compared with your filing-status standard
+                deduction. Property tax remains shown at its full estimated amount above. Local
+                exemptions, credits, and eligibility are not verified.
+              </div>
             </div>
             <div className="card">
               <div className="sourceLine">

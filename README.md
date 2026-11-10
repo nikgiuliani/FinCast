@@ -25,7 +25,11 @@ Run `npm run build` to create the production build, then `npm run start` to serv
 
 ## Intentional fallbacks
 
-Water/sewer/trash/gas/internet and payroll withholding use clearly labeled planning models where there is no dependable nationwide free public API. The app continues to work if external APIs are unavailable.
+Water/sewer/trash/gas/internet and state payroll withholding use clearly labeled planning models where there is no dependable nationwide free public API. Federal paycheck estimates use 2026 tax brackets and the entered filing status and W-4 adjustments; they are not a substitute for payroll software or tax advice.
+
+The home summary estimates potential federal tax savings from deductible mortgage interest and property taxes, shown separately as negative monthly offsets. Property tax rates are user-entered estimates. Address matching identifies the county and ZIP code, but the app does not verify local homeowner exemptions, credits, or eligibility.
+
+Federal standard deduction and rate references: [IRS tax-year 2026 adjustments](https://www.irs.gov/newsroom/irs-releases-tax-inflation-adjustments-for-tax-year-2026-including-amendments-from-the-one-big-beautiful-bill). Mortgage-interest limits are modeled from [IRS Publication 936](https://www.irs.gov/publications/p936).
 
 ## Scenario toggles
 

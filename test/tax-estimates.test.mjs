@@ -1,0 +1,62 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  annualMortgageInterest,
+  estimateHomeTaxBenefits,
+  federalIncomeTax,
+  standardDeductionFor,
+} from '../app/tax-estimates.mjs';
+
+test('uses the 2026 standard deduction for each filing status', () => {
+  assert.equal(standardDeductionFor('single'), 16100);
+  assert.equal(standardDeductionFor('marriedFilingJointly'), 32200);
+  assert.equal(standardDeductionFor('marriedFilingSeparately'), 16100);
+  assert.equal(standardDeductionFor('headOfHousehold'), 24150);
+});
+
+test('calculates federal tax progressively', () => {
+  assert.equal(federalIncomeTax(12400, 'single'), 1240);
+  assert.equal(federalIncomeTax(22400, 'single'), 2440);
+  assert.equal(federalIncomeTax(24800, 'marriedFilingJointly'), 2480);
+});
+
+test('estimates first-year mortgage interest', () => {
+  assert.ok(Math.abs(annualMortgageInterest(300000, 6, 30) - 17903) < 10);
+  assert.equal(annualMortgageInterest(300000, 0, 30), 0);
+});
+
+test('only reports an itemized home tax benefit above the standard deduction', () => {
+  const benefit = estimateHomeTaxBenefits({
+    incomeBeforeDeductions: 120000,
+    filingStatus: 'single',
+    stateIncomeTax: 5000,
+    propertyTax: 3000,
+    mortgageInterest: 12000,
+    mortgageBalance: 300000,
+  });
+  assert.ok(benefit.propertyTaxBenefit > 0);
+  assert.ok(benefit.mortgageInterestBenefit > 0);
+});
+
+test('does not estimate a home tax benefit when deductions remain below the standard deduction', () => {
+  const benefit = estimateHomeTaxBenefits({
+    incomeBeforeDeductions: 120000,
+    filingStatus: 'single',
+    stateIncomeTax: 4000,
+    propertyTax: 2000,
+    mortgageInterest: 4000,
+    mortgageBalance: 200000,
+  });
+  assert.equal(benefit.propertyTaxBenefit, 0);
+  assert.equal(benefit.mortgageInterestBenefit, 0);
+});
+
+test('limits deductible mortgage interest to qualified acquisition debt', () => {
+  const benefit = estimateHomeTaxBenefits({
+    incomeBeforeDeductions: 200000,
+    filingStatus: 'single',
+    mortgageInterest: 40000,
+    mortgageBalance: 1500000,
+  });
+  assert.equal(benefit.eligibleMortgageInterest, 20000);
+});
