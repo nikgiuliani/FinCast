@@ -551,7 +551,7 @@ export default function Page() {
                 </Field>
               </div>
               <div className="inline" style={{ marginTop: 10 }}>
-                <button className="btn secondary" onClick={refresh} disabled={loading}>
+                <button className="btn" onClick={refresh} disabled={loading}>
                   {loading ? 'Refreshing…' : 'Refresh live data'}
                 </button>
                 {geo?.source && <Badge live={geo.live}>{geo.source}</Badge>}
@@ -793,7 +793,7 @@ export default function Page() {
               <Row k="30-year conventional" v={(rates.conventional30 || '—') + '%'} />
               <Row k="15-year conventional" v={(rates.conventional15 || '—') + '%'} />
               <button
-                className="btn secondary"
+                className="btn benchmarkButton"
                 onClick={() => setRate(rates.conventional30 || rate)}
               >
                 Use 30-year benchmark

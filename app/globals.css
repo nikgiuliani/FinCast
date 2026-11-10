@@ -7,6 +7,8 @@
   --surface-tabs: #e6ece8;
   --tab-active-bg: #176b4d;
   --tab-active-text: #ffffff;
+  --button-primary: #176b4d;
+  --button-primary-text: #ffffff;
   --text: #17211c;
   --text-muted: #65736b;
   --text-label: #4e5c54;
@@ -32,6 +34,8 @@
   --surface-tabs: #222d27;
   --tab-active-bg: #28513d;
   --tab-active-text: #e6eee9;
+  --button-primary: #28513d;
+  --button-primary-text: #ffffff;
   --text: #e6eee9;
   --text-muted: #a4b2aa;
   --text-label: #c1ccc5;
@@ -104,9 +108,13 @@ button {
   border-radius: 9px;
   padding: 10px 16px;
   background: transparent;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 .tabs .active {
-  background: var(--surface);
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  box-shadow: 0 1px 3px #0002;
 }
 .settings {
   position: relative;
@@ -241,15 +249,21 @@ button {
   gap: 12px;
 }
 .metric {
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
+  background: var(--brand-soft);
+  border: 1px solid var(--focus-ring);
+  border-left: 3px solid var(--brand);
   border-radius: 14px;
   padding: 16px;
+}
+.metric .tiny {
+  color: var(--good-text);
+  font-weight: 700;
 }
 .metric b {
   font-size: 26px;
   display: block;
   margin-top: 4px;
+  color: var(--good-text);
 }
 .row {
   display: flex;
@@ -279,8 +293,19 @@ button {
   border-radius: 10px;
   padding: 11px 14px;
   font-weight: 750;
-  background: #176b4d;
-  color: white;
+  background: var(--button-primary);
+  color: var(--button-primary-text);
+  transition:
+    background-color 140ms ease,
+    transform 140ms ease;
+}
+.btn:not(:disabled):hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.btn:disabled {
+  cursor: wait;
+  opacity: 0.75;
 }
 .takeHomeAction {
   display: block;
@@ -292,6 +317,11 @@ button {
   background: var(--secondary);
   color: var(--secondary-text);
 }
+.benchmarkButton {
+  border: 1px solid var(--focus-ring);
+  background: var(--brand-soft);
+  color: var(--good-text);
+}
 .inline {
   display: flex;
   gap: 8px;
@@ -299,8 +329,8 @@ button {
   align-items: center;
 }
 .profit {
-  background: #173d2d;
-  color: #fff;
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
   border-radius: 18px;
   padding: 20px;
 }
@@ -311,7 +341,8 @@ button {
   font-size: 34px;
 }
 .profit .muted {
-  color: #d0ded6;
+  color: var(--tab-active-text);
+  opacity: 0.82;
 }
 .bar {
   height: 9px;
@@ -400,11 +431,6 @@ button {
     color: var(--text-muted);
     font-size: 14px;
     font-weight: 700;
-  }
-  .tabs .active {
-    background: var(--tab-active-bg);
-    color: var(--tab-active-text);
-    box-shadow: 0 1px 3px #0002;
   }
   .brand {
     grid-column: 1;
