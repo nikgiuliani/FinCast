@@ -1,19 +1,21 @@
-# HomePay Live
+# FinCast
 
-Next.js version of HomePay with instant local calculations plus free/open-data integrations.
+FinCast provides instant local paycheck and home affordability calculations plus free/open-data integrations.
 
 ## Run
 
 1. Install Node.js 20.9+.
-2. `npm install`
+2. Enable Corepack with `corepack enable`, then install dependencies with `pnpm install`.
 3. Copy `.env.example` to `.env.local`.
 4. Optional: add free `EIA_API_KEY` and `NREL_API_KEY`.
-5. `npm run dev`
+5. `pnpm dev`
 6. Open http://localhost:3000
 
 ## Production
 
-Run `npm run build` to create the production build, then `npm run start` to serve it. Both commands require Node.js 20.9+.
+Run `pnpm build` to create the production build, then `pnpm start` to serve it. Both commands require Node.js 20.9+.
+
+Use pnpm for dependency changes (`pnpm add`, `pnpm add -D`, and `pnpm remove`) and commit `pnpm-lock.yaml` so installs stay reproducible.
 
 ## Live/free integrations
 

@@ -333,7 +333,7 @@ export default function Page() {
     <main className="shell">
       <div className="top">
         <div className="brand">
-          Home<span>Pay</span> Live
+          Fin<span>Cast</span>
         </div>
         <div className="tabs">
           <button className={tab === 'pay' ? 'active' : ''} onClick={() => setTab('pay')}>

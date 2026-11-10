@@ -1,7 +1,8 @@
 {
-  "name": "homepay-live",
+  "name": "fincast",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.34.9",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

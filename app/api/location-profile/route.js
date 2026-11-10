@@ -17,7 +17,7 @@ export async function GET(req) {
       trash: [20, 45],
       internet: [50, 90],
     }),
-    source: 'HomePay regional planning ranges',
+    source: 'FinCast regional planning ranges',
     live: false,
   });
 }
