@@ -1,2 +1,39 @@
-import {NextResponse} from 'next/server';
-export async function GET(req){const q=new URL(req.url).searchParams,lat=q.get('lat'),lon=q.get('lon'),kw=Number(q.get('kw')||8),key=process.env.NREL_API_KEY;if(!lat||!lon)return NextResponse.json({error:'lat/lon required'},{status:400});if(!key)return NextResponse.json({live:false,source:'Solar estimate unavailable until NREL_API_KEY is added',needsKey:'NREL_API_KEY'});const u=new URL('https://developer.nrel.gov/api/pvwatts/v8.json');[['api_key',key],['lat',lat],['lon',lon],['system_capacity',String(kw)],['azimuth','180'],['tilt','20'],['array_type','1'],['module_type','1'],['losses','14']].forEach(([k,v])=>u.searchParams.set(k,v));try{const r=await fetch(u,{next:{revalidate:86400}}),j=await r.json();return NextResponse.json({live:true,source:'NREL PVWatts v8',annualKwh:j?.outputs?.ac_annual,monthlyKwh:j?.outputs?.ac_monthly});}catch{return NextResponse.json({live:false,source:'NREL unavailable'})}}
+import { NextResponse } from 'next/server';
+export async function GET(req) {
+  const q = new URL(req.url).searchParams,
+    lat = q.get('lat'),
+    lon = q.get('lon'),
+    kw = Number(q.get('kw') || 8),
+    key = process.env.NREL_API_KEY;
+  if (!lat || !lon) return NextResponse.json({ error: 'lat/lon required' }, { status: 400 });
+  if (!key)
+    return NextResponse.json({
+      live: false,
+      source: 'Solar estimate unavailable until NREL_API_KEY is added',
+      needsKey: 'NREL_API_KEY',
+    });
+  const u = new URL('https://developer.nrel.gov/api/pvwatts/v8.json');
+  [
+    ['api_key', key],
+    ['lat', lat],
+    ['lon', lon],
+    ['system_capacity', String(kw)],
+    ['azimuth', '180'],
+    ['tilt', '20'],
+    ['array_type', '1'],
+    ['module_type', '1'],
+    ['losses', '14'],
+  ].forEach(([k, v]) => u.searchParams.set(k, v));
+  try {
+    const r = await fetch(u, { next: { revalidate: 86400 } }),
+      j = await r.json();
+    return NextResponse.json({
+      live: true,
+      source: 'NREL PVWatts v8',
+      annualKwh: j?.outputs?.ac_annual,
+      monthlyKwh: j?.outputs?.ac_monthly,
+    });
+  } catch {
+    return NextResponse.json({ live: false, source: 'NREL unavailable' });
+  }
+}

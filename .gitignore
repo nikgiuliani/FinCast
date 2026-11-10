@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Build artifacts
+build/
+dist/
+coverage/
+
+# Local environment files (keep the example template)
+.env*
+!.env.example
+
+# Deployment
+.vercel/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# macOS
+.DS_Store
+app/.DS_Store
+app/api/.DS_Store
