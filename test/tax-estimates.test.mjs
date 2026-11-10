@@ -4,6 +4,7 @@ import {
   annualMortgageInterest,
   estimateHomeTaxBenefits,
   federalIncomeTax,
+  stateIncomeTaxRate,
   standardDeductionFor,
 } from '../app/tax-estimates.mjs';
 
@@ -18,6 +19,13 @@ test('calculates federal tax progressively', () => {
   assert.equal(federalIncomeTax(12400, 'single'), 1240);
   assert.equal(federalIncomeTax(22400, 'single'), 2440);
   assert.equal(federalIncomeTax(24800, 'marriedFilingJointly'), 2480);
+});
+
+test('keeps no-income-tax states at zero instead of using the unknown-state fallback', () => {
+  assert.equal(stateIncomeTaxRate('TX'), 0);
+  assert.equal(stateIncomeTaxRate('FL'), 0);
+  assert.equal(stateIncomeTaxRate('UT'), 0.0455);
+  assert.equal(stateIncomeTaxRate('unknown'), 0.045);
 });
 
 test('estimates first-year mortgage interest', () => {

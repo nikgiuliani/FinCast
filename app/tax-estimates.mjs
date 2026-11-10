@@ -49,6 +49,12 @@ const taxSchedules = {
   },
 };
 
+const stateTaxRates = { UT: 0.0455, TX: 0, CA: 0.06, NY: 0.055, FL: 0, CO: 0.044 };
+
+export function stateIncomeTaxRate(state) {
+  return stateTaxRates[state] ?? 0.045;
+}
+
 export function standardDeductionFor(status) {
   return taxSchedules[status]?.standardDeduction ?? taxSchedules.single.standardDeduction;
 }

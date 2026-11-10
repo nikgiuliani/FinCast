@@ -4,6 +4,7 @@ import {
   annualMortgageInterest,
   estimateHomeTaxBenefits,
   federalIncomeTax,
+  stateIncomeTaxRate,
   standardDeductionFor,
 } from './tax-estimates.mjs';
 const money = (n) =>
@@ -59,16 +60,19 @@ export default function Page() {
     [otherPreTax, setOtherPreTax] = useState(0),
     [additionalDeductions, setAdditionalDeductions] = useState(0);
   const [address, setAddress] = useState('123 Main St, West Jordan, UT 84084'),
+    [locationState, setLocationState] = useState('UT'),
     [geo, setGeo] = useState(null),
     [geoStatus, setGeoStatus] = useState('Type an address, then refresh live location data.');
   const [price, setPrice] = useState(500000),
     [down, setDown] = useState(20),
     [loanType, setLoanType] = useState('conventional'),
-    [rate, setRate] = useState(7.18),
+    [conventionalRate, setConventionalRate] = useState(7.18),
+    [fhaRate, setFhaRate] = useState(7.18),
     [term, setTerm] = useState(30),
     [taxRate, setTaxRate] = useState(1.0),
     [insurance, setInsurance] = useState(2400),
     [hoa, setHoa] = useState(0);
+  const rate = loanType === 'fha' ? (fhaRate ?? conventionalRate) : conventionalRate;
   const [includeUtilities, setIncludeUtilities] = useState(true),
     [includeProjects, setIncludeProjects] = useState(true);
   const [projectType, setProjectType] = useState('solar'),
@@ -147,7 +151,7 @@ export default function Page() {
       socialSecurity = (Math.min(ficaWages, 184500) * 0.062) / periods,
       medicare = (ficaWages * 0.0145 + Math.max(0, ficaWages - 200000) * 0.009) / periods,
       fica = socialSecurity + medicare,
-      stateTaxRate = { UT: 0.0455, TX: 0, CA: 0.06, NY: 0.055, FL: 0, CO: 0.044 }[state] || 0.045,
+      stateTaxRate = stateIncomeTaxRate(state),
       stateTax = (taxableWages * stateTaxRate) / periods,
       postTaxPerCheck = Math.max(0, Number(additionalDeductions) || 0),
       net = Math.max(0, gross - preTaxPerCheck - fed - fica - stateTax - postTaxPerCheck);
@@ -264,7 +268,7 @@ export default function Page() {
       grossTotal,
       total,
       left: pay.monthly - total,
-      ratio: pay.monthly ? total / pay.monthly : 0,
+      ratio: pay.monthly > 0 ? total / pay.monthly : null,
     };
   }, [
     price,
@@ -295,8 +299,8 @@ export default function Page() {
         r.json(),
       );
       setGeo(g);
-      const st = g.state || state;
-      if (g.state) setState(g.state);
+      const st = g.state || locationState;
+      if (g.state) setLocationState(g.state);
       setGeoStatus(
         g.matched
           ? `Matched ${g.matchedAddress}${g.county ? ' · ' + g.county : ''}`
@@ -310,7 +314,6 @@ export default function Page() {
       setEnergy(e);
       setProfile(p);
       setRates(r);
-      if (loanType === 'conventional' && r.conventional30) setRate(r.conventional30);
       if (g.coordinates) {
         const s = await fetch(`/api/solar?lat=${g.coordinates.y}&lon=${g.coordinates.x}&kw=8`).then(
           (x) => x.json(),
@@ -579,20 +582,28 @@ export default function Page() {
                     value={loanType}
                     onChange={(e) => {
                       setLoanType(e.target.value);
-                      if (e.target.value === 'conventional') setRate(rates.conventional30 || rate);
                     }}
                   >
                     <option value="conventional">Conventional</option>
                     <option value="fha">FHA</option>
                   </select>
                 </Field>
-                <Field label="Mortgage rate (%)">
+                <Field label={`${loanType === 'fha' ? 'FHA' : 'Conventional'} mortgage rate (%)`}>
                   <input
                     type="number"
                     step=".01"
-                    value={rate}
-                    onChange={(e) => setRate(+e.target.value)}
+                    value={loanType === 'fha' ? (fhaRate ?? '') : conventionalRate}
+                    onChange={(e) => {
+                      const nextRate = e.target.value === '' ? null : Number(e.target.value);
+                      if (loanType === 'fha') setFhaRate(nextRate);
+                      else if (nextRate !== null) setConventionalRate(nextRate);
+                    }}
                   />
+                  <span className="tiny">
+                    {loanType === 'fha'
+                      ? `No live FHA rate is available. Enter your quote; until then, the estimate uses ${conventionalRate.toFixed(2)}% as a provisional rate.`
+                      : 'Enter your conventional quote. FHA rates are entered separately.'}
+                  </span>
                 </Field>
                 <Field label="Term">
                   <select value={term} onChange={(e) => setTerm(+e.target.value)}>
@@ -719,7 +730,18 @@ export default function Page() {
                   />
                 </Field>
               </div>
-              <Row k="Project loan payment" v={money(projectPayment) + '/mo'} />
+              <Row
+                k={`${
+                  {
+                    solar: 'Solar panels',
+                    roof: 'Roof replacement',
+                    hvac: 'HVAC',
+                    windows: 'Windows',
+                    kitchen: 'Kitchen remodel',
+                  }[projectType]
+                } loan payment`}
+                v={money(projectPayment) + '/mo'}
+              />
             </div>
           </section>
           <aside className="stack">
@@ -727,10 +749,16 @@ export default function Page() {
               <div className="muted">Monthly take-home after selected housing costs</div>
               <strong>{money(home.left)}</strong>
               <div className="bar">
-                <i style={{ width: Math.min(100, home.ratio * 100) + '%' }} />
+                <i
+                  style={{
+                    width: (home.ratio === null ? 0 : Math.min(100, home.ratio * 100)) + '%',
+                  }}
+                />
               </div>
               <div className="muted">
-                Selected housing costs use {(home.ratio * 100).toFixed(0)}% of take-home.
+                {home.ratio === null
+                  ? 'Housing costs cannot be compared with take-home pay of $0.'
+                  : `Selected housing costs use ${(home.ratio * 100).toFixed(0)}% of take-home.`}
               </div>
             </div>
             <div className="card">
@@ -794,10 +822,26 @@ export default function Page() {
               <Row k="15-year conventional" v={(rates.conventional15 || '—') + '%'} />
               <button
                 className="btn benchmarkButton"
-                onClick={() => setRate(rates.conventional30 || rate)}
+                onClick={() => {
+                  setLoanType('conventional');
+                  setTerm(30);
+                  setConventionalRate(rates.conventional30 ?? conventionalRate);
+                }}
               >
                 Use 30-year benchmark
               </button>
+              {rates.conventional15 != null && (
+                <button
+                  className="btn benchmarkButton"
+                  onClick={() => {
+                    setLoanType('conventional');
+                    setTerm(15);
+                    setConventionalRate(rates.conventional15);
+                  }}
+                >
+                  Use 15-year benchmark
+                </button>
+              )}
               <div className="notice">
                 FHA mortgage-insurance rules are modeled from HUD guidance. A free nationwide
                 personalized FHA lender-quote API is not available here, so FHA rate remains
