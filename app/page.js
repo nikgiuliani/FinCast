@@ -13,10 +13,11 @@ const money = (n) =>
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(Number.isFinite(n) ? n : 0);
+const numberInputValue = (value) => (value === '' ? '' : Number(value));
 const mortgage = (p, a, y) => {
   const r = a / 1200,
     n = y * 12;
-  return p <= 0 ? 0 : r ? (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1) : p / n;
+  return p <= 0 || n <= 0 ? 0 : r ? (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1) : p / n;
 };
 function Badge({ live, children }) {
   return (
@@ -235,7 +236,7 @@ export default function Page() {
       ins = insurance / 12,
       utilityIncluded = includeUtilities ? util.total : 0,
       projectsIncluded = includeProjects ? projectPayment : 0,
-      grossTotal = pi + tax + ins + hoa + mi + utilityIncluded + projectsIncluded,
+      grossTotal = pi + tax + ins + (Number(hoa) || 0) + mi + utilityIncluded + projectsIncluded,
       annualInterest = annualMortgageInterest(principal, rate, term),
       taxBenefits = estimateHomeTaxBenefits({
         incomeBeforeDeductions: pay.incomeBeforeDeductions,
@@ -398,7 +399,11 @@ export default function Page() {
             </p>
             <div className="fields">
               <Field label="Annual salary">
-                <input type="number" value={salary} onChange={(e) => setSalary(+e.target.value)} />
+                <input
+                  type="number"
+                  value={salary}
+                  onChange={(e) => setSalary(numberInputValue(e.target.value))}
+                />
               </Field>
               <Field label="Federal filing status">
                 <select value={filingStatus} onChange={(e) => setFilingStatus(e.target.value)}>
@@ -429,7 +434,7 @@ export default function Page() {
                   min="0"
                   step="1"
                   value={childrenUnder17}
-                  onChange={(e) => setChildrenUnder17(+e.target.value)}
+                  onChange={(e) => setChildrenUnder17(numberInputValue(e.target.value))}
                 />
               </Field>
               <Field label="Other qualifying dependents">
@@ -438,7 +443,7 @@ export default function Page() {
                   min="0"
                   step="1"
                   value={otherDependents}
-                  onChange={(e) => setOtherDependents(+e.target.value)}
+                  onChange={(e) => setOtherDependents(numberInputValue(e.target.value))}
                 />
               </Field>
               <Field label="Other annual income (W-4)">
@@ -446,7 +451,7 @@ export default function Page() {
                   type="number"
                   min="0"
                   value={otherIncome}
-                  onChange={(e) => setOtherIncome(+e.target.value)}
+                  onChange={(e) => setOtherIncome(numberInputValue(e.target.value))}
                 />
               </Field>
               <Field label="Other annual deductions (W-4, above standard)">
@@ -454,7 +459,7 @@ export default function Page() {
                   type="number"
                   min="0"
                   value={w4Deductions}
-                  onChange={(e) => setW4Deductions(+e.target.value)}
+                  onChange={(e) => setW4Deductions(numberInputValue(e.target.value))}
                 />
               </Field>
               <Field label="Retirement / paycheck (%)">
@@ -462,14 +467,14 @@ export default function Page() {
                   type="number"
                   step=".5"
                   value={retire}
-                  onChange={(e) => setRetire(+e.target.value)}
+                  onChange={(e) => setRetire(numberInputValue(e.target.value))}
                 />
               </Field>
               <Field label="Medical / paycheck">
                 <input
                   type="number"
                   value={medical}
-                  onChange={(e) => setMedical(+e.target.value)}
+                  onChange={(e) => setMedical(numberInputValue(e.target.value))}
                 />
               </Field>
               <Field label="Other pre-tax benefits / paycheck">
@@ -477,7 +482,7 @@ export default function Page() {
                   type="number"
                   min="0"
                   value={otherPreTax}
-                  onChange={(e) => setOtherPreTax(+e.target.value)}
+                  onChange={(e) => setOtherPreTax(numberInputValue(e.target.value))}
                 />
               </Field>
               <Field label="Extra tax withholding / paycheck">
@@ -485,7 +490,7 @@ export default function Page() {
                   type="number"
                   min="0"
                   value={extraWithholding}
-                  onChange={(e) => setExtraWithholding(+e.target.value)}
+                  onChange={(e) => setExtraWithholding(numberInputValue(e.target.value))}
                 />
               </Field>
             </div>
@@ -499,7 +504,7 @@ export default function Page() {
                   min="0"
                   step=".01"
                   value={additionalDeductions}
-                  onChange={(e) => setAdditionalDeductions(+e.target.value)}
+                  onChange={(e) => setAdditionalDeductions(numberInputValue(e.target.value))}
                 />
               </Field>
             </div>
@@ -567,14 +572,18 @@ export default function Page() {
               </div>
               <div className="fields">
                 <Field label="Home price">
-                  <input type="number" value={price} onChange={(e) => setPrice(+e.target.value)} />
+                  <input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setPrice(numberInputValue(e.target.value))}
+                  />
                 </Field>
                 <Field label="Down payment (%)">
                   <input
                     type="number"
                     step=".5"
                     value={down}
-                    onChange={(e) => setDown(+e.target.value)}
+                    onChange={(e) => setDown(numberInputValue(e.target.value))}
                   />
                 </Field>
                 <Field label="Loan type">
@@ -594,9 +603,9 @@ export default function Page() {
                     step=".01"
                     value={loanType === 'fha' ? (fhaRate ?? '') : conventionalRate}
                     onChange={(e) => {
-                      const nextRate = e.target.value === '' ? null : Number(e.target.value);
+                      const nextRate = numberInputValue(e.target.value);
                       if (loanType === 'fha') setFhaRate(nextRate);
-                      else if (nextRate !== null) setConventionalRate(nextRate);
+                      else setConventionalRate(nextRate);
                     }}
                   />
                   <span className="tiny">
@@ -616,18 +625,22 @@ export default function Page() {
                     type="number"
                     step=".01"
                     value={taxRate}
-                    onChange={(e) => setTaxRate(+e.target.value)}
+                    onChange={(e) => setTaxRate(numberInputValue(e.target.value))}
                   />
                 </Field>
                 <Field label="Insurance / year">
                   <input
                     type="number"
                     value={insurance}
-                    onChange={(e) => setInsurance(+e.target.value)}
+                    onChange={(e) => setInsurance(numberInputValue(e.target.value))}
                   />
                 </Field>
                 <Field label="HOA / month">
-                  <input type="number" value={hoa} onChange={(e) => setHoa(+e.target.value)} />
+                  <input
+                    type="number"
+                    value={hoa}
+                    onChange={(e) => setHoa(numberInputValue(e.target.value))}
+                  />
                 </Field>
               </div>
               <div className="notice">
@@ -711,7 +724,7 @@ export default function Page() {
                   <input
                     type="number"
                     value={projectCost}
-                    onChange={(e) => setProjectCost(+e.target.value)}
+                    onChange={(e) => setProjectCost(numberInputValue(e.target.value))}
                   />
                 </Field>
                 <Field label="Loan APR (%)">
@@ -719,14 +732,14 @@ export default function Page() {
                     type="number"
                     step=".1"
                     value={projectRate}
-                    onChange={(e) => setProjectRate(+e.target.value)}
+                    onChange={(e) => setProjectRate(numberInputValue(e.target.value))}
                   />
                 </Field>
                 <Field label="Term (years)">
                   <input
                     type="number"
                     value={projectTerm}
-                    onChange={(e) => setProjectTerm(+e.target.value)}
+                    onChange={(e) => setProjectTerm(numberInputValue(e.target.value))}
                   />
                 </Field>
               </div>
