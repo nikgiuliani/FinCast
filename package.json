@@ -12,6 +12,7 @@
     "test": "node --test"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
     "next": "16.0.10",
     "react": "19.2.0",
     "react-dom": "19.2.0"

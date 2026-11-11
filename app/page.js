@@ -64,6 +64,8 @@ export default function Page() {
   const [address, setAddress] = useState('123 Main St, West Jordan, UT 84084'),
     [locationState, setLocationState] = useState('UT'),
     [schoolTaxRate, setSchoolTaxRate] = useState(1),
+    [texasSchoolTaxRate, setTexasSchoolTaxRate] = useState(null),
+    [schoolTaxLookupStatus, setSchoolTaxLookupStatus] = useState(''),
     [geo, setGeo] = useState(null),
     [geoStatus, setGeoStatus] = useState('Type an address, then refresh live location data.');
   const [price, setPrice] = useState(500000),
@@ -244,7 +246,7 @@ export default function Page() {
         state: locationState,
         propertyValue: price,
         propertyTaxRate: taxRate,
-        schoolTaxRate,
+        schoolTaxRate: locationState === 'TX' ? texasSchoolTaxRate : schoolTaxRate,
       }),
       homesteadSavings = homestead.amount,
       taxBenefits = estimateHomeTaxBenefits({
@@ -291,6 +293,7 @@ export default function Page() {
     taxRate,
     locationState,
     schoolTaxRate,
+    texasSchoolTaxRate,
     insurance,
     hoa,
     util,
@@ -346,6 +349,46 @@ export default function Page() {
     }, 700);
     return () => clearTimeout(t);
   }, []);
+  useEffect(() => {
+    if (locationState !== 'TX') {
+      setTexasSchoolTaxRate(null);
+      setSchoolTaxLookupStatus('');
+      return;
+    }
+
+    if (!geo?.matched || !geo.coordinates) {
+      setTexasSchoolTaxRate(null);
+      setSchoolTaxLookupStatus(
+        'Refresh live data with a matched Texas address to identify its school district rate.',
+      );
+      return;
+    }
+
+    const controller = new AbortController();
+    setTexasSchoolTaxRate(null);
+    setSchoolTaxLookupStatus('Looking up the school district and latest reported rate…');
+
+    async function lookupSchoolRate() {
+      try {
+        const response = await fetch(
+          `/api/texas-school-rate?lat=${geo.coordinates.y}&lon=${geo.coordinates.x}`,
+          { signal: controller.signal },
+        );
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'School district rate lookup failed.');
+        setTexasSchoolTaxRate(result.schoolTaxRate);
+        setSchoolTaxLookupStatus(
+          `${result.schoolDistrict}: ${result.schoolTaxRate}% school tax rate (${result.taxYear}, Texas Comptroller).`,
+        );
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        setSchoolTaxLookupStatus(error.message);
+      }
+    }
+
+    lookupSchoolRate();
+    return () => controller.abort();
+  }, [locationState, geo]);
   return (
     <main className="shell">
       <div className="top">
@@ -568,7 +611,14 @@ export default function Page() {
               <h1>Turn an address into an all-in monthly cost.</h1>
               <div className="fields">
                 <Field label="Property address" wide>
-                  <input value={address} onChange={(e) => setAddress(e.target.value)} />
+                  <input
+                    value={address}
+                    onChange={(e) => {
+                      setAddress(e.target.value);
+                      setGeo(null);
+                      setGeoStatus('Address changed; refresh live data to match the new location.');
+                    }}
+                  />
                 </Field>
                 <Field label="Property state">
                   <select value={locationState} onChange={(e) => setLocationState(e.target.value)}>
@@ -577,8 +627,8 @@ export default function Page() {
                     ))}
                   </select>
                 </Field>
-                {(locationState === 'TX' || locationState === 'FL') && (
-                  <Field label="Estimated school district tax rate (%)">
+                {locationState === 'FL' && (
+                  <Field label="School tax rate for Florida estimate (%)">
                     <input
                       type="number"
                       min="0"
@@ -587,12 +637,26 @@ export default function Page() {
                       onChange={(e) => setSchoolTaxRate(numberInputValue(e.target.value))}
                     />
                     <span className="tiny">
-                      Used for the state exemption estimate; verify this rate on your local tax
-                      bill.
+                      Florida school rates vary by district. This rate is still an estimate; use
+                      your local property tax bill if you have it.
                     </span>
                   </Field>
                 )}
               </div>
+              {locationState === 'TX' && (
+                <p className="tiny">
+                  {schoolTaxLookupStatus}{' '}
+                  {texasSchoolTaxRate != null && (
+                    <a
+                      href="https://comptroller.texas.gov/taxes/property-tax/rates/index.php"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View rate data
+                    </a>
+                  )}
+                </p>
+              )}
               <div className="inline" style={{ marginTop: 10 }}>
                 <button className="btn" onClick={refresh} disabled={loading}>
                   {loading ? 'Refreshing…' : 'Refresh live data'}
@@ -602,7 +666,7 @@ export default function Page() {
               <p className="tiny">{geoStatus}</p>
               <div className="notice">
                 {geo?.matched
-                  ? `Location matched to ${[geo.city, geo.county && `${geo.county} County`, geo.state, geo.zip].filter(Boolean).join(', ')}. Address-specific exemptions and local credits are not verified; check the county assessor for programs you may qualify for.`
+                  ? `Location matched to ${[geo.city, geo.county && `${geo.county} County`, geo.state, geo.zip].filter(Boolean).join(', ')}. The Texas school rate is looked up when available; local optional exemptions and parcel-specific credits are not included.`
                   : 'Location-specific exemptions and local credits are not verified. A matched address can identify the jurisdiction, but eligibility depends on the property and owner.'}
               </div>
               <div className="fields">
@@ -845,7 +909,14 @@ export default function Page() {
                 <b>{money(projectPayment)}</b>
               </div>
               <Row k="Gross monthly housing cost" v={money(home.grossTotal)} />
-              <Row k={home.homestead.label} v={`${money(-home.homesteadSavings / 12)}/mo`} />
+              <Row
+                k={home.homestead.label}
+                v={
+                  locationState === 'TX' && texasSchoolTaxRate == null
+                    ? 'Rate unavailable'
+                    : `${money(-home.homesteadSavings / 12)}/mo`
+                }
+              />
               <Row
                 k="Estimated federal benefit: property tax"
                 v={`${money(-home.propertyTaxBenefit)}/mo`}

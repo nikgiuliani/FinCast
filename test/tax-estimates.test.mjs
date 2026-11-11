@@ -38,6 +38,14 @@ test('estimates Texas homestead savings only against school district tax', () =>
   });
   assert.equal(savings.amount, 1400);
 
+  const districtRateExceedsTheEstimatedOverallRate = estimateHomesteadTaxSavings({
+    state: 'TX',
+    propertyValue: 500000,
+    propertyTaxRate: 0.5,
+    schoolTaxRate: 0.9252,
+  });
+  assert.equal(districtRateExceedsTheEstimatedOverallRate.amount, 1295.28);
+
   const capped = estimateHomesteadTaxSavings({
     state: 'TX',
     propertyValue: 100000,

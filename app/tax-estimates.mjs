@@ -63,7 +63,7 @@ export function estimateHomesteadTaxSavings({
 }) {
   const value = Math.max(0, Number(propertyValue) || 0);
   const totalRate = Math.max(0, Number(propertyTaxRate) || 0);
-  const schoolRate = Math.min(totalRate, Math.max(0, Number(schoolTaxRate) || 0));
+  const schoolRate = Math.max(0, Number(schoolTaxRate) || 0);
   const annualPropertyTax = (value * totalRate) / 100;
 
   switch (state) {
