@@ -55,6 +55,80 @@ export function stateIncomeTaxRate(state) {
   return stateTaxRates[state] ?? 0.045;
 }
 
+export function estimateHomesteadTaxSavings({
+  state,
+  propertyValue,
+  propertyTaxRate,
+  schoolTaxRate,
+}) {
+  const value = Math.max(0, Number(propertyValue) || 0);
+  const totalRate = Math.max(0, Number(propertyTaxRate) || 0);
+  const schoolRate = Math.min(totalRate, Math.max(0, Number(schoolTaxRate) || 0));
+  const annualPropertyTax = (value * totalRate) / 100;
+
+  switch (state) {
+    case 'TX':
+      return {
+        amount: Math.min(annualPropertyTax, (Math.min(value, 140000) * schoolRate) / 100),
+        label: 'Texas residence homestead exemption',
+        details:
+          'Applies the $140,000 school-district exemption using the entered school tax rate, which starts at a 1% planning assumption. Replace it with your local rate. Optional local exemptions are not included.',
+        source: 'https://comptroller.texas.gov/taxes/property-tax/exemptions/',
+      };
+    case 'UT':
+      return {
+        amount: annualPropertyTax * 0.45,
+        label: 'Utah primary residential exemption',
+        details:
+          'Estimates the 45% primary-residence taxable-value exemption. Eligibility and county approval are assumed.',
+        source: 'https://tax.utah.gov/propertytax/tax-relief/primary-residential-exemption/',
+      };
+    case 'CA':
+      return {
+        amount: (Math.min(value, 7000) * totalRate) / 100,
+        label: 'California homeowners’ exemption',
+        details:
+          'Estimates the $7,000 assessed-value reduction for a qualifying owner-occupied principal residence.',
+        source: 'https://www.boe.ca.gov/proptaxes/homeowners_exemption.htm',
+      };
+    case 'FL': {
+      const firstExemption = Math.min(value, 25000);
+      const additionalExemption = Math.min(Math.max(0, value - 50000), 25000);
+      return {
+        amount: (firstExemption * totalRate + additionalExemption * (totalRate - schoolRate)) / 100,
+        label: 'Florida homestead exemption',
+        details:
+          'Estimates the first $25,000 exemption for all levies and the next eligible $25,000 for non-school levies. The school tax rate starts at a 1% planning assumption; replace it with your local rate.',
+        source:
+          'https://www.leg.state.fl.us/Statutes/index.cfm?App_mode=Display_Statute&URL=0100-0199/0196/Sections/0196.031.html',
+      };
+    }
+    case 'NY':
+      return {
+        amount: 0,
+        label: 'New York STAR benefit not estimated',
+        details:
+          'STAR depends on eligibility, income, school district, and the actual school tax bill.',
+        source: 'https://www.tax.ny.gov/pit/property/star/eligibility.htm',
+      };
+    case 'CO':
+      return {
+        amount: 0,
+        label: 'No general Colorado homestead exemption estimated',
+        details:
+          'No general homestead exemption is modeled. Additional programs require separate eligibility details.',
+        source: null,
+      };
+    default:
+      return {
+        amount: 0,
+        label: 'No state exemption estimate available',
+        details: 'No homestead savings are included for this state.',
+        source: null,
+      };
+  }
+}
+
 export function standardDeductionFor(status) {
   return taxSchedules[status]?.standardDeduction ?? taxSchedules.single.standardDeduction;
 }

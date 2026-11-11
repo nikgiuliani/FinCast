@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   annualMortgageInterest,
   estimateHomeTaxBenefits,
+  estimateHomesteadTaxSavings,
   federalIncomeTax,
   stateIncomeTaxRate,
   standardDeductionFor,
@@ -62,6 +63,7 @@ export default function Page() {
     [additionalDeductions, setAdditionalDeductions] = useState(0);
   const [address, setAddress] = useState('123 Main St, West Jordan, UT 84084'),
     [locationState, setLocationState] = useState('UT'),
+    [schoolTaxRate, setSchoolTaxRate] = useState(1),
     [geo, setGeo] = useState(null),
     [geoStatus, setGeoStatus] = useState('Type an address, then refresh live location data.');
   const [price, setPrice] = useState(500000),
@@ -238,20 +240,27 @@ export default function Page() {
       projectsIncluded = includeProjects ? projectPayment : 0,
       grossTotal = pi + tax + ins + (Number(hoa) || 0) + mi + utilityIncluded + projectsIncluded,
       annualInterest = annualMortgageInterest(principal, rate, term),
+      homestead = estimateHomesteadTaxSavings({
+        state: locationState,
+        propertyValue: price,
+        propertyTaxRate: taxRate,
+        schoolTaxRate,
+      }),
+      homesteadSavings = homestead.amount,
       taxBenefits = estimateHomeTaxBenefits({
         incomeBeforeDeductions: pay.incomeBeforeDeductions,
         filingStatus,
         federalCredits: pay.federalCredits,
         w4Deductions,
         stateIncomeTax: pay.stateTax * freq,
-        propertyTax: tax * 12,
+        propertyTax: Math.max(0, tax * 12 - homesteadSavings),
         mortgageInterest: annualInterest,
         mortgageBalance: principal,
       }),
       propertyTaxBenefit = taxBenefits.propertyTaxBenefit / 12,
       mortgageInterestBenefit = taxBenefits.mortgageInterestBenefit / 12,
       taxBenefit = propertyTaxBenefit + mortgageInterestBenefit,
-      total = Math.max(0, grossTotal - taxBenefit);
+      total = Math.max(0, grossTotal - homesteadSavings / 12 - taxBenefit);
     return {
       base,
       pi,
@@ -266,6 +275,8 @@ export default function Page() {
       propertyTaxBenefit,
       mortgageInterestBenefit,
       taxBenefit,
+      homestead,
+      homesteadSavings,
       grossTotal,
       total,
       left: pay.monthly - total,
@@ -278,6 +289,8 @@ export default function Page() {
     rate,
     term,
     taxRate,
+    locationState,
+    schoolTaxRate,
     insurance,
     hoa,
     util,
@@ -557,6 +570,28 @@ export default function Page() {
                 <Field label="Property address" wide>
                   <input value={address} onChange={(e) => setAddress(e.target.value)} />
                 </Field>
+                <Field label="Property state">
+                  <select value={locationState} onChange={(e) => setLocationState(e.target.value)}>
+                    {['UT', 'TX', 'CA', 'NY', 'FL', 'CO'].map((stateCode) => (
+                      <option key={stateCode}>{stateCode}</option>
+                    ))}
+                  </select>
+                </Field>
+                {(locationState === 'TX' || locationState === 'FL') && (
+                  <Field label="Estimated school district tax rate (%)">
+                    <input
+                      type="number"
+                      min="0"
+                      step=".01"
+                      value={schoolTaxRate}
+                      onChange={(e) => setSchoolTaxRate(numberInputValue(e.target.value))}
+                    />
+                    <span className="tiny">
+                      Used for the state exemption estimate; verify this rate on your local tax
+                      bill.
+                    </span>
+                  </Field>
+                )}
               </div>
               <div className="inline" style={{ marginTop: 10 }}>
                 <button className="btn" onClick={refresh} disabled={loading}>
@@ -810,20 +845,31 @@ export default function Page() {
                 <b>{money(projectPayment)}</b>
               </div>
               <Row k="Gross monthly housing cost" v={money(home.grossTotal)} />
+              <Row k={home.homestead.label} v={`${money(-home.homesteadSavings / 12)}/mo`} />
               <Row
-                k="Estimated property-tax deduction"
+                k="Estimated federal benefit: property tax"
                 v={`${money(-home.propertyTaxBenefit)}/mo`}
               />
               <Row
-                k="Estimated mortgage-interest deduction"
+                k="Estimated federal benefit: mortgage interest"
                 v={`${money(-home.mortgageInterestBenefit)}/mo`}
               />
               <Row k="Net monthly cost after estimated tax benefits" v={money(home.total)} />
               <div className="notice">
-                Tax benefits are estimated federal tax savings from itemizing eligible property
-                taxes and first-year mortgage interest, compared with your filing-status standard
-                deduction. Property tax remains shown at its full estimated amount above. Local
-                exemptions, credits, and eligibility are not verified.
+                <p style={{ margin: 0 }}>
+                  State exemption savings assume this is an eligible primary residence and any
+                  required application is approved. {home.homestead.details}{' '}
+                  {home.homestead.source && (
+                    <a href={home.homestead.source} target="_blank" rel="noreferrer">
+                      Official state rules
+                    </a>
+                  )}
+                </p>
+                <p style={{ margin: '8px 0 0' }}>
+                  Federal benefits are separate estimates of tax savings from itemizing eligible
+                  property taxes and first-year mortgage interest, compared with your standard
+                  deduction. Property tax above remains before state exemption savings.
+                </p>
               </div>
             </div>
             <div className="card">

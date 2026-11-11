@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   annualMortgageInterest,
   estimateHomeTaxBenefits,
+  estimateHomesteadTaxSavings,
   federalIncomeTax,
   stateIncomeTaxRate,
   standardDeductionFor,
@@ -26,6 +27,71 @@ test('keeps no-income-tax states at zero instead of using the unknown-state fall
   assert.equal(stateIncomeTaxRate('FL'), 0);
   assert.equal(stateIncomeTaxRate('UT'), 0.0455);
   assert.equal(stateIncomeTaxRate('unknown'), 0.045);
+});
+
+test('estimates Texas homestead savings only against school district tax', () => {
+  const savings = estimateHomesteadTaxSavings({
+    state: 'TX',
+    propertyValue: 500000,
+    propertyTaxRate: 2,
+    schoolTaxRate: 1,
+  });
+  assert.equal(savings.amount, 1400);
+
+  const capped = estimateHomesteadTaxSavings({
+    state: 'TX',
+    propertyValue: 100000,
+    propertyTaxRate: 0.5,
+    schoolTaxRate: 1,
+  });
+  assert.equal(capped.amount, 500);
+});
+
+test('estimates Utah, California, and Florida state homestead exemptions', () => {
+  assert.equal(
+    estimateHomesteadTaxSavings({
+      state: 'UT',
+      propertyValue: 500000,
+      propertyTaxRate: 1,
+    }).amount,
+    2250,
+  );
+  assert.equal(
+    estimateHomesteadTaxSavings({
+      state: 'CA',
+      propertyValue: 500000,
+      propertyTaxRate: 1,
+    }).amount,
+    70,
+  );
+  assert.equal(
+    estimateHomesteadTaxSavings({
+      state: 'FL',
+      propertyValue: 500000,
+      propertyTaxRate: 2,
+      schoolTaxRate: 1,
+    }).amount,
+    750,
+  );
+});
+
+test('does not imply a statewide exemption estimate for states without a modeled general exemption', () => {
+  assert.equal(
+    estimateHomesteadTaxSavings({
+      state: 'NY',
+      propertyValue: 500000,
+      propertyTaxRate: 2,
+    }).amount,
+    0,
+  );
+  assert.equal(
+    estimateHomesteadTaxSavings({
+      state: 'CO',
+      propertyValue: 500000,
+      propertyTaxRate: 2,
+    }).amount,
+    0,
+  );
 });
 
 test('estimates first-year mortgage interest', () => {
