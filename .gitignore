@@ -31,3 +31,4 @@ pnpm-debug.log*
 .DS_Store
 app/.DS_Store
 app/api/.DS_Store
+.vercel
